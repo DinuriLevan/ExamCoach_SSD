@@ -1,0 +1,57 @@
+# Quick Artillery profile for Course Management APIs
+# Purpose: fast smoke performance check with minimal runtime
+
+config:
+  target: "https://examcoach-backend-mnoy.onrender.com"
+
+  http:
+    timeout: 8
+
+  maxVusers: 15
+
+  # Total runtime: 45 seconds
+  phases:
+    - name: "Quick warm-up"
+      duration: 15
+      arrivalRate: 1
+
+    - name: "Quick load"
+      duration: 30
+      arrivalRate: 3
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ jwtToken }}"
+
+  variables:
+    jwtToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YmQ1ZmRmOWU2OTFlYjcwMDNjYzNjZSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1ODk5NzE0LCJleHAiOjE3Nzg0OTE3MTR9.2yYL41nYqQhsmEgn8Z5GkBeCg4vuE7WrV-OWZNAzZKs"
+    subjectId: "698df799e518c39f3efc1d1c"
+
+  plugins:
+    expect: {}
+
+scenarios:
+  - name: "Courses list"
+    weight: 60
+    flow:
+      - get:
+          url: "/api/subjects"
+          expect:
+            - statusCode: 200
+
+  - name: "Subject detail"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/subjects/{{ subjectId }}"
+          expect:
+            - statusCode: 200
+
+  - name: "Subject lessons"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/subjects/{{ subjectId }}/lessons"
+          expect:
+            - statusCode: 200

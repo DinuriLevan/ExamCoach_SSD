@@ -1,0 +1,63 @@
+# Artillery performance profile for RegisterStudent (User Management) module
+# Focus: student registration and OTP verification endpoint behavior.
+
+config:
+  # Backend base URL
+  target: "https://examcoach-backend-mnoy.onrender.com"
+
+  # Timeout suitable for registration + email-triggered workflows
+  http:
+    timeout: 20
+
+  # Upper limit for simultaneously active VUs
+  maxVusers: 50
+
+  # Load phases for progressive pressure
+  phases:
+    - name: "Warm-up"
+      duration: 60
+      arrivalRate: 2
+
+    - name: "Steady load"
+      duration: 180
+      arrivalRate: 5
+
+    - name: "Peak load"
+      duration: 120
+      arrivalRate: 8
+
+  # Default headers for all requests
+  # Note: register/verify are public routes, but Authorization placeholder is kept per requirement.
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ authToken }}"
+
+  # Replace token if needed for environments enforcing auth gateways
+  variables:
+    authToken: "REPLACE_WITH_VALID_BEARER_TOKEN"
+
+scenarios:
+  # Registration + OTP verification flow
+  - name: "RegisterStudent flow"
+    flow:
+      # 1) Register a student with unique email to avoid duplicate-user conflicts
+      - post:
+          url: "/api/auth/register-student"
+          json:
+            firstName: "Perf"
+            lastName: "Student"
+            email: "perf.student+{{$timestamp}}{{$randomNumber(1000,9999)}}@example.com"
+            password: "PerfPass123!"
+          capture:
+            - json: "$.userId"
+              as: "registeredUserId"
+      - think: 1
+
+      # 2) Hit OTP verification endpoint using captured userId
+      # Static OTP is used for load behavior testing; response may be success or invalid-OTP based on runtime OTP value.
+      - post:
+          url: "/api/auth/verify-otp"
+          json:
+            userId: "{{ registeredUserId }}"
+            otp: "123456"

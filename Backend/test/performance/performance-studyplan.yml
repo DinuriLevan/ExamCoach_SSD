@@ -1,0 +1,59 @@
+# Artillery performance profile for Study Plan module
+# Focus: fetching study plan, timetable, and progress.
+
+config:
+  # Backend base URL
+  target: "https://examcoach-backend-mnoy.onrender.com"
+
+  http:
+    timeout: 30
+
+  # Upper limit for simultaneously active VUs
+  maxVusers: 35
+
+  # Load phases: quick warm-up, steady traffic, then short peak to keep under 30s
+  phases:
+    - name: "Warm-up"
+      duration: 10
+      arrivalRate: 1
+
+    - name: "Steady load"
+      duration: 15
+      arrivalRate: 3
+
+    - name: "Peak load"
+      duration: 5
+      arrivalRate: 5
+
+  # Default headers for all requests in this test
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ authToken }}"
+
+  # Replace with a valid student JWT before execution
+  variables:
+    authToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YmFmMWI5MzM5OGFkYWRhMzE0MDcwMyIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1OTExNTc0LCJleHAiOjE3Nzg1MDM1NzR9.Ae8BxJDDu8xDLfKhIKfzdDQzTdwPFgxqh0Mr9Vg7d38
+
+scenarios:
+  # End-to-end Study Plan viewing flow under load
+  - name: "Study Plan View Flow"
+    flow:
+      # 1) Fetch main study plan data
+      - get:
+          url: "/api/study-plan"
+      - think: 2
+
+      # 2) Fetch detailed timetable
+      - get:
+          url: "/api/study-plan/timetable"
+      - think: 1
+
+      # 3) Fetch today's progress summary
+      - get:
+          url: "/api/study-plan/today-progress"
+      - think: 1
+
+      # 4) Fetch overall progress
+      - get:
+          url: "/api/study-plan/progress"

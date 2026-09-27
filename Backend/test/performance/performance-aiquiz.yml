@@ -1,0 +1,93 @@
+# Artillery performance profile for AIQuizGenerator module
+# Focus: quiz generation, result saving, quiz history, and explanation flow.
+
+config:
+  # Backend base URL
+  target: "https://examcoach-backend-mnoy.onrender.com"
+
+  # Higher timeout because AI-backed endpoints can be slower
+  http:
+    timeout: 30
+
+  # Upper limit for simultaneously active VUs
+  maxVusers: 35
+
+  # Load phases: gradual warm-up, steady traffic, then peak traffic
+  phases:
+    - name: "Warm-up"
+      duration: 60
+      arrivalRate: 1
+
+    - name: "Steady load"
+      duration: 180
+      arrivalRate: 3
+
+    - name: "Peak load"
+      duration: 120
+      arrivalRate: 5
+
+  # Default headers for all requests in this test
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ authToken }}"
+
+  # Replace with a valid student JWT before execution
+  variables:
+    authToken: "REPLACE_WITH_VALID_BEARER_TOKEN"
+
+scenarios:
+  # End-to-end AI quiz flow under load
+  - name: "AIQuizGenerator end-to-end flow"
+    flow:
+      # 1) Generate a quiz from text content
+      - post:
+          url: "/api/quiz/generate"
+          json:
+            textInput: "Photosynthesis is the process by which green plants convert light energy into chemical energy. Chlorophyll absorbs sunlight, and carbon dioxide with water is converted into glucose and oxygen."
+            numQuestions: 5
+            difficulty: "Normal"
+            language: "English"
+            selectedTypes:
+              - "MCQ"
+              - "TrueFalse"
+              - "ShortAnswer"
+      - think: 1
+
+      # 2) Save a completed quiz attempt
+      - post:
+          url: "/api/quiz/save"
+          json:
+            title: "AI Quiz Perf {{$timestamp}}"
+            score: 3
+            totalQuestions: 5
+            difficulty: "Normal"
+            sourceContent: "Performance test content for AIQuizGenerator flow."
+            pdfUrl: null
+            questions:
+              - type: "MCQ"
+                question: "What gas do plants release during photosynthesis?"
+                options:
+                  - "Nitrogen"
+                  - "Oxygen"
+                  - "Hydrogen"
+                  - "Helium"
+                correctAnswer: "Oxygen"
+                userAnswer: "Oxygen"
+                obtainedMarks: 1
+                explanation: "Plants release oxygen as a by-product of photosynthesis."
+      - think: 1
+
+      # 3) Fetch quiz history
+      - get:
+          url: "/api/quiz/history"
+      - think: 1
+
+      # 4) Request simple explanation for a wrong answer
+      - post:
+          url: "/api/quiz/explain"
+          json:
+            question: "What gas do plants release during photosynthesis?"
+            correctAnswer: "Oxygen"
+            userAnswer: "Nitrogen"
+            sourceContent: "Photosynthesis produces oxygen from water splitting in light-dependent reactions."

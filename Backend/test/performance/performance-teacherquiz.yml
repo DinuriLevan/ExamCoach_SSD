@@ -1,0 +1,113 @@
+# Artillery performance profile for TeacherQuiz modular endpoints
+# Focus: manual quiz creation, getting quizzes, enrolling, attempting, capturing attempts
+
+config:
+  # Backend base URL - Test against local by default
+  target: "http://localhost:5000"
+
+  http:
+    timeout: 30
+
+  # Max VUs
+  maxVusers: 35
+
+  # Load phases: gradual warm-up, steady traffic, then peak traffic
+  phases:
+    - name: "Warm-up"
+      duration: 30
+      arrivalRate: 1
+
+    - name: "Steady load"
+      duration: 60
+      arrivalRate: 3
+
+  # Default headers
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ authToken }}"
+
+  # Replace with a valid student JWT before execution
+  variables:
+    authToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OGFkZGQzZDA1MjcxZWRkMWM3MDk3ZiIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1OTE3MzExLCJleHAiOjE3Nzg1MDkzMTF9.16gbUHOBAD0hUPkA7LYxVkq-orIF5_bC9DTmUrbAK3c"
+
+scenarios:
+  - name: "TeacherQuiz robust end-to-end flow"
+    flow:
+      # 1) Get all quizzes
+      - get:
+          url: "/api/quizzes"
+      - think: 1
+      
+      # 2) Create a new quiz (currently unprotected or requires teacher; we'll see if token works)
+      - post:
+          url: "/api/quizzes"
+          json:
+            title: "Performance Test Quiz {{$timestamp}}"
+            subject: "Performance"
+            description: "A test quiz for performance tuning."
+            timeLimit: 10
+            maxAttempts: 3
+            enrollmentKey: "perf{{$timestamp}}"
+            questions:
+              - question: "Is this a performance test?"
+                options:
+                  - "Yes"
+                  - "No"
+                  - "Maybe"
+                correctAnswer: 0
+                explanation: "Yes, it is."
+              - question: "Which tool is running this test?"
+                options:
+                  - "JMeter"
+                  - "K6"
+                  - "Artillery"
+                correctAnswer: 2
+                explanation: "We are using Artillery."
+          capture:
+            - json: "$.data._id"
+              as: "createdQuizId"
+              strict: false
+            - json: "$.data.enrollmentKey"
+              as: "quizEnrollmentKey"
+              strict: false
+      - think: 1
+
+      # 3) Enroll to the specific quiz
+      - post:
+          ifTrue: "createdQuizId"
+          url: "/api/quizzes/enroll"
+          json:
+            enrollmentKey: "{{ quizEnrollmentKey }}"
+      - think: 1
+
+      # 4) Get the quiz details
+      - get:
+          ifTrue: "createdQuizId"
+          url: "/api/quizzes/{{ createdQuizId }}"
+      - think: 1
+
+      # 5) Verify quiz access
+      - post:
+          ifTrue: "createdQuizId"
+          url: "/api/quizzes/{{ createdQuizId }}/verify"
+          json:
+            enrollmentKey: "{{ quizEnrollmentKey }}"
+      - think: 1
+
+      # 6) Submit quiz attempt
+      - post:
+          ifTrue: "createdQuizId"
+          url: "/api/quizzes/{{ createdQuizId }}/attempt"
+          json:
+            answers:
+              - selectedAnswer: 0
+              - selectedAnswer: 2
+            timeTaken: 120
+            tabSwitchCount: 0
+      - think: 1
+
+      # 7) Get user attempts for this quiz
+      - get:
+          ifTrue: "createdQuizId"
+          url: "/api/quizzes/{{ createdQuizId }}/my-attempts"

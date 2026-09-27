@@ -1,0 +1,68 @@
+# Quick Artillery profile for AI Learning Lab APIs
+# Purpose: fast smoke performance check with minimal runtime
+
+config:
+  target: "https://examcoach-backend-mnoy.onrender.com"
+
+  # Keep short timeout so stalled requests do not prolong the run
+  http:
+    timeout: 8
+
+  maxVusers: 10
+
+  # Total runtime: 45 seconds
+  phases:
+    - name: "Quick warm-up"
+      duration: 15
+      arrivalRate: 1
+
+    - name: "Quick load"
+      duration: 30
+      arrivalRate: 2
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ jwtToken }}"
+
+  variables:
+    jwtToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5YmQ1ZmRmOWU2OTFlYjcwMDNjYzNjZSIsInJvbGUiOiJzdHVkZW50IiwiaWF0IjoxNzc1ODk5NzE0LCJleHAiOjE3Nzg0OTE3MTR9.2yYL41nYqQhsmEgn8Z5GkBeCg4vuE7WrV-OWZNAzZKs"
+    aiUserId: "69bd5fe09e691eb7003cc3d0"
+
+  plugins:
+    expect: {}
+
+scenarios:
+  # Keep summarize lightweight due external Gemini quota limits
+  - name: "AI summarize probe"
+    weight: 10
+    flow:
+      - post:
+          url: "/api/ai/summarize"
+          json:
+            text: "Node.js event loop handles asynchronous operations using non-blocking I/O."
+            summaryType: "paragraph"
+      - think: 1
+
+  # Main stable internal flow with strict checks
+  - name: "AI save and history"
+    weight: 90
+    flow:
+      - post:
+          url: "/api/ai/save"
+          json:
+            title: "AI Quick Perf {{$timestamp}}"
+            summary: "Quick performance test summary."
+            originalText: "Quick test original text."
+            userId: "{{ aiUserId }}"
+            summaryType: "paragraph"
+            relatedResources:
+              - title: "Node.js Docs"
+                link: "https://nodejs.org/en/docs"
+                type: "website"
+          expect:
+            - statusCode: 201
+      - get:
+          url: "/api/ai/history/{{ aiUserId }}"
+          expect:
+            - statusCode: 200
