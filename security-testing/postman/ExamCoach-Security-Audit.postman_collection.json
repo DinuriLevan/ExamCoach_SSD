@@ -1,0 +1,1046 @@
+{
+  "info": {
+    "_postman_id": "c4f2b7a0-examcoach-security-audit-0001",
+    "name": "ExamCoach Security Audit - Black Box Evidence",
+    "description": "Automated black-box evidence collection for the 8 findings in SECURITY_AUDIT.md. Run with Newman before and after each fix to produce a before/after HTML report. See security-testing/README.md for setup and run commands.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Finding 1 - Unauthenticated Quiz CRUD (A01)",
+      "description": "SECURITY_AUDIT.md Finding 1. No account, no token, no cookie is sent on any request in this folder.",
+      "item": [
+        {
+          "name": "1.1 Create Quiz (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: quiz created with no Authorization header', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data._id) {",
+                  "    pm.environment.set('f1_quizId', json.data._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quizzes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"F1 - Unauthenticated Create Test\",\n  \"subject\": \"Security Audit\",\n  \"questions\": [\n    {\n      \"question\": \"Is this quiz creatable without login?\",\n      \"options\": [\n        \"Yes\",\n        \"No\"\n      ],\n      \"correctAnswer\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Update Quiz (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: quiz updated with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data.title).to.eql('F1 - TAMPERED by unauthenticated request');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quizzes/{{f1_quizId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"F1 - TAMPERED by unauthenticated request\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 View Attempts/Results (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: teacher-only attempts endpoint reachable with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f1_quizId}}/attempts"
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Delete Quiz (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: quiz deleted with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f1_quizId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Verify Deletion Persisted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Confirms the unauthenticated delete actually persisted (quiz now 404)', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f1_quizId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 2 - Quiz Answer Key Exposed Before Submission (A06)",
+      "description": "SECURITY_AUDIT.md Finding 2.",
+      "item": [
+        {
+          "name": "2.1 Create Quiz With Known Answer (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Setup: quiz created for exposure test', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data._id) {",
+                  "    pm.environment.set('f2_quizId', json.data._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quizzes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"F2 - Answer Exposure Test\",\n  \"subject\": \"Security Audit\",\n  \"questions\": [\n    {\n      \"question\": \"2+2=?\",\n      \"options\": [\n        \"3\",\n        \"4\",\n        \"5\",\n        \"6\"\n      ],\n      \"correctAnswer\": 1,\n      \"explanation\": \"Basic arithmetic\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Fetch Quiz As Anonymous Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('VULNERABLE: correctAnswer is exposed to an unauthenticated caller before submission', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.data.questions[0].correctAnswer).to.eql(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f2_quizId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Cleanup - Delete Test Quiz",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('cleanup ok', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f2_quizId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 3 - IDOR on Student Profile (A01) [Requires one-time setup]",
+      "description": "SECURITY_AUDIT.md Finding 3. Needs two PRE-EXISTING, verified student accounts. See README \"One-Time Setup\" and fill studentA_email/studentA_password/studentB_email/studentB_password in the environment before running this folder.",
+      "item": [
+        {
+          "name": "3.1 Login Student A",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Student A login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('tokenA', json.token);",
+                  "pm.environment.set('userIdA', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{studentA_email}}\",\n  \"password\": \"{{studentA_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 Login Student B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Student B login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('tokenB', json.token);",
+                  "pm.environment.set('userIdB', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{studentB_email}}\",\n  \"password\": \"{{studentB_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 Student A Reads Student B Profile (IDOR)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: Student A can read Student B profile using only Student A own token', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('f3_studentB_originalPhone', (json.data && json.data.phone) || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/students/profile/{{userIdB}}"
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 Student A Tampers Student B Profile (IDOR write)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: Student A can modify Student B profile', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/students/profile/{{userIdB}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0000000000-TAMPERED-BY-A\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 Confirm Tamper Persisted (Student B own view)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('Confirms the cross-account write actually persisted in the database', function () {",
+                  "    pm.expect(json.data.phone).to.eql('0000000000-TAMPERED-BY-A');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/students/profile/{{userIdB}}"
+          },
+          "response": []
+        },
+        {
+          "name": "3.6 Cleanup - Restore Student B Phone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('cleanup ok', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/students/profile/{{userIdB}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{f3_studentB_originalPhone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 4 - Missing Authentication on AI Summary History (A01)",
+      "description": "SECURITY_AUDIT.md Finding 4. Fully self-contained: a random-looking Mongo ObjectId is generated locally and used as an arbitrary userId - no real account is needed to prove the endpoints require zero authentication.",
+      "item": [
+        {
+          "name": "4.1 Save AI Summary As Anonymous (fabricated userId)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "function randHex(len) {",
+                  "    let s = '';",
+                  "    const chars = '0123456789abcdef';",
+                  "    for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * 16)];",
+                  "    return s;",
+                  "}",
+                  "pm.environment.set('f4_fakeUserId', randHex(24));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: AI summary saved with no Authorization header, arbitrary userId accepted', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('f4_summaryId', json._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ai/save",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{f4_fakeUserId}}\",\n  \"title\": \"F4 Evidence Summary\",\n  \"summary\": \"test summary content\",\n  \"originalText\": \"test source text\",\n  \"summaryType\": \"paragraph\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 Read History As Anonymous",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('VULNERABLE: history readable with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.length).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/ai/history/{{f4_fakeUserId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 Update History Item As Anonymous",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: history item updated with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ai/history/{{f4_summaryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{f4_fakeUserId}}\",\n  \"title\": \"F4 TAMPERED TITLE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.4 Delete History Item As Anonymous",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: history item deleted with no Authorization header', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ai/history/{{f4_summaryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{f4_fakeUserId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 5 - Hardcoded Default Admin Credentials (A07)",
+      "description": "SECURITY_AUDIT.md Finding 5. If seedAdmin.js was ever executed against this database, this login succeeds.",
+      "item": [
+        {
+          "name": "5.1 Login As Default Seeded Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "const status = pm.response.code;",
+                  "if (status === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.environment.set('adminToken', json.token);",
+                  "    pm.test('VULNERABLE: default seeded admin credentials are valid on this database', function () {",
+                  "        pm.expect(json.user.role).to.eql('admin');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('INFO: default admin credentials rejected on this DB instance (seedAdmin.js not run here) - still a latent risk, see SECURITY_AUDIT.md', function () {",
+                  "        pm.expect(status).to.eql(401);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@examcoach.com\",\n  \"password\": \"adminpassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.2 Use Admin Token To Access Platform Overview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "if (pm.environment.get('adminToken')) {",
+                  "    pm.test('VULNERABLE: hardcoded admin credential grants real admin-level API access', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Skipped - no admin token from 5.1 (credentials were rejected)', function () { pm.expect(true).to.be.true; });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/overview"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 6 - Wildcard CORS (A02)",
+      "description": "SECURITY_AUDIT.md Finding 6. The hardcoded-secret half of this finding is source-code evidence (see uploadMiddleware.js / quizController.js) - optionally verified live in the separate OPTIONAL folder below.",
+      "item": [
+        {
+          "name": "6.1 Check CORS Header From Untrusted Origin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: API reflects wildcard Access-Control-Allow-Origin for an arbitrary untrusted origin', function () {",
+                  "    pm.response.to.have.header('Access-Control-Allow-Origin');",
+                  "    pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql('*');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "https://evil-example.com",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quizzes"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 7 - Plaintext Quiz Password Disclosure (A04)",
+      "description": "SECURITY_AUDIT.md Finding 7.",
+      "item": [
+        {
+          "name": "7.1 Create Password-Protected Quiz (No Auth)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Setup: password-protected quiz created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json && json.data && json.data._id) {",
+                  "    pm.environment.set('f7_quizId', json.data._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quizzes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"F7 - Password Disclosure Test\",\n  \"subject\": \"Security Audit\",\n  \"questions\": [\n    {\n      \"question\": \"Q1\",\n      \"options\": [\n        \"A\",\n        \"B\"\n      ],\n      \"correctAnswer\": 0\n    }\n  ],\n  \"quizPassword\": \"SuperSecret123!\",\n  \"enrollmentKey\": \"ENROLL-XYZ\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7.2 Fetch Quiz Credentials As Anonymous",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "const json = pm.response.json();",
+                  "pm.test('VULNERABLE: plaintext quizPassword/enrollmentKey returned to an unauthenticated caller', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(json.data.quizPassword).to.eql('SuperSecret123!');",
+                  "    pm.expect(json.data.enrollmentKey).to.eql('ENROLL-XYZ');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f7_quizId}}?includeCredentials=true"
+          },
+          "response": []
+        },
+        {
+          "name": "7.3 Cleanup - Delete Test Quiz",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('cleanup ok', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/quizzes/{{f7_quizId}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Finding 8 - Sensitive Data Logged in Plaintext (A09) [Check server console]",
+      "description": "SECURITY_AUDIT.md Finding 8. These requests only TRIGGER the log lines. The actual evidence is the server console/terminal output captured at the same moment - keep the backend terminal visible while running this folder.",
+      "item": [
+        {
+          "name": "8.1 Trigger Registration OTP Log",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "function randHex(len) {",
+                  "    let s = '';",
+                  "    const chars = '0123456789abcdef';",
+                  "    for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * 16)];",
+                  "    return s;",
+                  "}",
+                  "pm.environment.set('f8_randomEmail', 'sectest+' + randHex(8) + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Registration triggered - now check the server console for a plaintext \"DEVELOPMENT OTP\" line', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register-student",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Log\",\n  \"lastName\": \"Test\",\n  \"email\": \"{{f8_randomEmail}}\",\n  \"password\": \"TestPass123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8.2 Trigger Password-Reset Token Log",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Reset triggered - now check the server console for the plaintext reset URL/token', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/forgot-password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{studentA_email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8.3 Trigger Bearer-Token Log Line",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('Authenticated call made - now check the server console for the [AUTH] ... Authorization header line', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/me"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "OPTIONAL - Live Cloudinary Hardcoded Secret Verification",
+      "description": "Only run this if YOU own this Cloudinary account (du1gjenvg). Proves the secret hardcoded in Backend/middleware/uploadMiddleware.js and Backend/controllers/quizController.js is a live, working credential. Excluded from the default Newman run - see README for how to run it separately.",
+      "item": [
+        {
+          "name": "9.1 List Cloudinary Resources Using Hardcoded Secret",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.test('VULNERABLE: hardcoded Cloudinary secret from source code is a live, working credential', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "https://api.cloudinary.com/v1_1/du1gjenvg/resources/image",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "735518326372853",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "APN9C79BAZrybhYYiCL69pqelRs",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ]
+}

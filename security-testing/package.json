@@ -1,0 +1,16 @@
+{
+  "name": "examcoach-security-testing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Newman (Postman CLI) black-box evidence runner for SECURITY_AUDIT.md",
+  "scripts": {
+    "test:before": "newman run postman/ExamCoach-Security-Audit.postman_collection.json -e postman/ExamCoach-Local-Dev.postman_environment.json --folder \"Finding 1 - Unauthenticated Quiz CRUD (A01)\" --folder \"Finding 2 - Quiz Answer Key Exposed Before Submission (A06)\" --folder \"Finding 3 - IDOR on Student Profile (A01) [Requires one-time setup]\" --folder \"Finding 4 - Missing Authentication on AI Summary History (A01)\" --folder \"Finding 5 - Hardcoded Default Admin Credentials (A07)\" --folder \"Finding 6 - Wildcard CORS (A02)\" --folder \"Finding 7 - Plaintext Quiz Password Disclosure (A04)\" --folder \"Finding 8 - Sensitive Data Logged in Plaintext (A09) [Check server console]\" -r cli,htmlextra --reporter-htmlextra-export postman/reports/BEFORE-fix-report.html",
+    "test:after": "newman run postman/ExamCoach-Security-Audit.postman_collection.json -e postman/ExamCoach-Local-Dev.postman_environment.json --folder \"Finding 1 - Unauthenticated Quiz CRUD (A01)\" --folder \"Finding 2 - Quiz Answer Key Exposed Before Submission (A06)\" --folder \"Finding 3 - IDOR on Student Profile (A01) [Requires one-time setup]\" --folder \"Finding 4 - Missing Authentication on AI Summary History (A01)\" --folder \"Finding 5 - Hardcoded Default Admin Credentials (A07)\" --folder \"Finding 6 - Wildcard CORS (A02)\" --folder \"Finding 7 - Plaintext Quiz Password Disclosure (A04)\" --folder \"Finding 8 - Sensitive Data Logged in Plaintext (A09) [Check server console]\" -r cli,htmlextra --reporter-htmlextra-export postman/reports/AFTER-fix-report.html",
+    "test:optional-cloudinary": "newman run postman/ExamCoach-Security-Audit.postman_collection.json --folder \"OPTIONAL - Live Cloudinary Hardcoded Secret Verification\" -r cli,htmlextra --reporter-htmlextra-export postman/reports/optional-cloudinary-report.html",
+    "build:collection": "node postman/build-collection.js"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}
