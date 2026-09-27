@@ -51,7 +51,7 @@ describe('googleLogin Controller (Unit)', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         process.env.JWT_SECRET = 'unit-test-secret';
-        process.env.GOOGLE_CLIENT_ID = 'test-client-id';
+        process.env.GOOGLE_LOGIN_CLIENT_ID = 'test-client-id';
 
         mockJwtSign.mockReturnValue('unit-signed-token');
     });

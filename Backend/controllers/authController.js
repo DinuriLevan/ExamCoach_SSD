@@ -7,9 +7,10 @@ const { OAuth2Client } = require('google-auth-library');
 const sendEmail = require('../utils/sendEmail');
 const { getOTPVerificationTemplate, getPasswordResetTemplate, getWelcomeTemplate } = require('../utils/emailTemplates');
 
-// Reuses the same Google Cloud OAuth Client ID already configured for Calendar
-// integration (config/googleCalendar.js) as the audience for verifying login ID tokens.
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Separate OAuth Client ID from the one used for Calendar integration
+// (config/googleCalendar.js) — this one has the frontend's origins authorized
+// for the Google Identity Services Sign-In button.
+const googleClient = new OAuth2Client(process.env.GOOGLE_LOGIN_CLIENT_ID);
 
 // ── Token Helper ─────────────────────────────────────────────
 // Signs a JWT containing the user's id and role.
@@ -250,7 +251,7 @@ exports.googleLogin = async (req, res) => {
         try {
             const ticket = await googleClient.verifyIdToken({
                 idToken: credential,
-                audience: process.env.GOOGLE_CLIENT_ID
+                audience: process.env.GOOGLE_LOGIN_CLIENT_ID
             });
             payload = ticket.getPayload();
         } catch (verifyErr) {
