@@ -38,7 +38,12 @@ exports.registerStudent = async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-        console.log(`\n\n=== DEVELOPMENT OTP FOR ${email}: ${otp} ===\n\n`);
+        // FIX (SECURITY_AUDIT.md Finding 8 — A09 Logging & Alerting Failures): this used to
+        // console.log the raw OTP on every registration. Hosting platforms (Render, etc.)
+        // persist console output, so anyone with log/dashboard access could read live OTPs
+        // and take over accounts without ever touching the victim's inbox. The OTP is already
+        // delivered through the legitimate channel below (email) — it does not need a console
+        // fallback.
 
         // Create User
         // Create base User record (holds credentials and role)
@@ -176,7 +181,8 @@ exports.login = async (req, res) => {
         if (!user.isVerified) {
             // Need to resend OTP? Optional feature. For now, let's just create a new one to resend
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            console.log(`\n\n=== DEVELOPMENT RESENT OTP FOR ${user.email}: ${otp} ===\n\n`);
+            // FIX (SECURITY_AUDIT.md Finding 8 — A09 Logging & Alerting Failures): removed the
+            // console.log of the raw resent OTP — same issue as registerStudent above.
             user.otp = otp;
             user.otpExpires = Date.now() + 10 * 60 * 1000;
             await user.save();
@@ -330,9 +336,11 @@ exports.forgotPassword = async (req, res) => {
     // Create reset url
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    console.log(`\n\n=== DEVELOPMENT PASSWORD RESET LINK FOR ${user.email} ===`);
-    console.log(resetUrl);
-    console.log(`=====================================================\n\n`);
+    // FIX (SECURITY_AUDIT.md Finding 8 — A09 Logging & Alerting Failures): removed the
+    // console.log of the full reset URL (which contains the raw, unhashed reset token).
+    // Hosting platforms persist console output, so this used to hand anyone with log access a
+    // working account-takeover link. The URL is already delivered through the legitimate
+    // channel below (email).
 
     const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
 

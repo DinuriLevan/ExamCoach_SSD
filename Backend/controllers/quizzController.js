@@ -68,8 +68,10 @@ exports.enrollToQuiz = async (req, res) => {
             }
         }
 
-        // VALIDATION: Quiz password must match if set
-        if (quiz.quizPassword && quiz.quizPassword !== quizPassword) {
+        // FIX (SECURITY_AUDIT.md Finding 7 — A04 Cryptographic Failures): quizPassword is now
+        // a bcrypt hash (see models/Quizz.js), so it must be checked with the async
+        // matchQuizPassword() comparator instead of a plaintext `!==` comparison.
+        if (quiz.quizPassword && !(await quiz.matchQuizPassword(quizPassword))) {
             return res.status(401).json({ success: false, error: 'Invalid quiz password.' });
         }
 
@@ -148,12 +150,19 @@ exports.getQuiz = async (req, res) => {
         // FIX (SECURITY_AUDIT.md Finding 1): ?includeCredentials=true used to work for ANY
         // caller (even unauthenticated ones); it now also requires isOwnerOrAdmin.
         const wantsCredentials = req.query.includeCredentials === 'true' && isOwnerOrAdmin;
+        const hasCredentials = !!(quizObj.enrollmentKey || quizObj.quizPassword);
+        // FIX (SECURITY_AUDIT.md Finding 7 — A04 Cryptographic Failures): quizPassword is now
+        // a bcrypt hash (see models/Quizz.js) and is NEVER sent to the client, even the owning
+        // teacher — a hash is useless to redisplay and shouldn't leave the server unnecessarily.
+        // It is write-only from here on (see quizzController.updateQuiz for how it gets set).
+        delete quizObj.quizPassword;
+        // enrollmentKey is a plaintext, reusable join code the owner legitimately needs to see
+        // again (to share with students / edit), so it IS still returned, but only to the
+        // owner/admin.
         if (!wantsCredentials) {
-            const hasCredentials = !!(quizObj.enrollmentKey || quizObj.quizPassword);
             delete quizObj.enrollmentKey;
-            delete quizObj.quizPassword;
-            quizObj.hasCredentials = hasCredentials; // tells frontend whether to show the lock icon
         }
+        quizObj.hasCredentials = hasCredentials; // tells frontend whether to show the lock icon
 
         // FIX (SECURITY_AUDIT.md Finding 2 — A06 Insecure Design): this endpoint used to return
         // the full question objects, including `correctAnswer` and `explanation`, to anyone who
@@ -232,11 +241,13 @@ exports.verifyQuizAccess = async (req, res) => {
             });
         }
 
-        // VALIDATION: Quiz password must match exactly
-        if (quiz.quizPassword && quiz.quizPassword !== quizPassword) {
-            return res.status(401).json({ 
-                success: false, 
-                error: 'Invalid quiz password' 
+        // FIX (SECURITY_AUDIT.md Finding 7 — A04 Cryptographic Failures): quizPassword is now
+        // a bcrypt hash (see models/Quizz.js), so it must be checked with the async
+        // matchQuizPassword() comparator instead of a plaintext `!==` comparison.
+        if (quiz.quizPassword && !(await quiz.matchQuizPassword(quizPassword))) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid quiz password'
             });
         }
 
@@ -309,10 +320,22 @@ exports.updateQuiz = async (req, res) => {
             updateData.totalQuestions = req.body.questions.length;
         }
 
-        quiz = await Quiz.findByIdAndUpdate(req.params.id, updateData, {
-            new: true,
-            runValidators: true // Enforce Mongoose schema validators on update
-        });
+        // FIX (SECURITY_AUDIT.md Finding 7 — A04 Cryptographic Failures): quizPassword is now
+        // write-only (getQuiz never sends it back — see above), so the edit form always
+        // submits an empty string unless the teacher deliberately types a new password.
+        // Treat a blank/omitted quizPassword as "leave the current password unchanged"
+        // instead of overwriting the existing hash with an empty string.
+        if (!updateData.quizPassword) {
+            delete updateData.quizPassword;
+        }
+
+        // FIX (SECURITY_AUDIT.md Finding 7): switched from Quiz.findByIdAndUpdate(...) to
+        // load-then-save. findByIdAndUpdate writes straight to MongoDB and does NOT run
+        // Mongoose's pre('save') middleware, so the bcrypt-hashing hook on quizPassword
+        // (models/Quizz.js) would never fire and a new password would be saved in plaintext.
+        // quiz.set() + quiz.save() goes through the document instance so that hook runs.
+        quiz.set(updateData);
+        quiz = await quiz.save();
 
         res.status(200).json({ success: true, data: quiz });
     } catch (err) {

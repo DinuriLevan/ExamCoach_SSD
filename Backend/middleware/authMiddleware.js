@@ -12,8 +12,10 @@ const jwt = require('jsonwebtoken');
 const protect = (req, res, next) => {
     let token;
 
-    // DEBUG: Log received Authorization header (trim to avoid leaking full token)
-    console.log(`[AUTH] ${req.method} ${req.originalUrl} — Authorization header: ${req.headers.authorization ? req.headers.authorization.substring(0, 30) + '...' : 'MISSING'}`);
+    // FIX (SECURITY_AUDIT.md Finding 8 — A09 Logging & Alerting Failures): this used to log a
+    // 30-character prefix of the Authorization header on EVERY authenticated request. Hosting
+    // platforms persist console output, and a JWT prefix (header + start of payload) is real
+    // leaked token material, not harmless debug info — removed entirely rather than truncated.
 
     // VALIDATION: Token must be present in Authorization header as "Bearer <token>"
     if (
