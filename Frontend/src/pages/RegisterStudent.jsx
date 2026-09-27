@@ -262,7 +262,7 @@ const RegisterStudent = () => {
                         <GoogleLogin
                             onSuccess={handleGoogleSuccess}
                             onError={() => setError('Google sign-up failed')}
-                            width="100%"
+                            width="384"
                             text="signup_with"
                         />
                     </div>
