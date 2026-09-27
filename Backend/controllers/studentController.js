@@ -39,7 +39,9 @@ exports.getStudent = async (req, res) => {
 
 // @desc    Get student profile by user ID
 // @route   GET /api/students/profile/:userId
-// @access  Private (Student themselves)
+// @access  Private (Student themselves, or Admin)
+// FIX (SECURITY_AUDIT.md Finding 3): ownership (req.user.id === :userId, or admin) is now
+// enforced by the `requireSelfOrAdmin` middleware in studentRoutes.js before this runs.
 exports.getStudentProfile = async (req, res) => {
     try {
         const student = await Student.findOne({ user: req.params.userId }).populate('user', 'name email');
@@ -59,7 +61,9 @@ exports.getStudentProfile = async (req, res) => {
 
 // @desc    Update student profile
 // @route   PUT /api/students/profile/:userId
-// @access  Private (Student themselves)
+// @access  Private (Student themselves, or Admin)
+// FIX (SECURITY_AUDIT.md Finding 3): ownership is now enforced by `requireSelfOrAdmin`
+// in studentRoutes.js — a student can no longer edit another student's profile.
 exports.updateStudentProfile = async (req, res) => {
     try {
         const { name, firstName, lastName, dob, gender, phone, address, profilePic } = req.body;
@@ -100,7 +104,11 @@ exports.updateStudentProfile = async (req, res) => {
 
 // @desc    Change student password
 // @route   PUT /api/students/change-password/:userId
-// @access  Private (Student themselves)
+// @access  Private (Student themselves, or Admin)
+// FIX (SECURITY_AUDIT.md Finding 3 — same IDOR pattern as the profile routes above):
+// this endpoint also trusted :userId with no ownership check, meaning any logged-in
+// student could change ANOTHER student's password. Now gated by `requireSelfOrAdmin`
+// in studentRoutes.js.
 exports.changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;

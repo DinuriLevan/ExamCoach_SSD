@@ -259,7 +259,11 @@ const summarizeText = async (req, res) => {
 
 const saveSummary = async (req, res) => {
     try {
-        const { title, summary, type, originalText, userId, summaryType } = req.body;
+        const { title, summary, type, originalText, summaryType } = req.body;
+        // FIX (SECURITY_AUDIT.md Finding 4 — A01 Broken Access Control): this used to trust
+        // `userId` from the request body, so anyone could attach a summary to ANY account.
+        // The owner is now always the authenticated caller (req.user.id from `protect`).
+        const userId = req.user.id;
         let originalContent = originalText;
         const parsedRelatedResources = parseRelatedResourcesInput(req.body.relatedResources);
 
@@ -317,7 +321,13 @@ const saveSummary = async (req, res) => {
 
 const getHistory = async (req, res) => {
     try {
-        const { userId } = req.params;
+        // FIX (SECURITY_AUDIT.md Finding 4 — A01 Broken Access Control): this route had no
+        // auth middleware and used the :userId route param directly, so anyone could read
+        // ANY user's AI summary history just by supplying that user's id. `protect` now runs
+        // first (aiRoutes.js), and req.params.userId is intentionally IGNORED below — the
+        // query always scopes to the authenticated caller's own id, so even a mismatched/
+        // guessed id in the URL can only ever return the caller's own history.
+        const userId = req.user.id;
         const history = await AISummary.find({ user: userId }).sort({ createdAt: -1 });
         res.status(200).json(history);
     } catch (error) {
@@ -329,11 +339,12 @@ const getHistory = async (req, res) => {
 const deleteHistoryItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId } = req.body;
-
-        if (!userId) {
-            return res.status(400).json({ message: 'userId is required' });
-        }
+        // FIX (SECURITY_AUDIT.md Finding 4 — A01 Broken Access Control): this used to trust a
+        // `userId` supplied in the request body, so anyone could delete ANY user's summary by
+        // sending that user's id alongside the target _id. `protect` now runs first
+        // (aiRoutes.js) and the ownership filter below always uses the authenticated caller's
+        // own id, so a summary can only ever be deleted by the account that owns it.
+        const userId = req.user.id;
 
         const deleted = await AISummary.findOneAndDelete({ _id: id, user: userId });
 
@@ -351,11 +362,11 @@ const deleteHistoryItem = async (req, res) => {
 const updateHistoryItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, title, summary } = req.body;
-
-        if (!userId) {
-            return res.status(400).json({ message: 'userId is required' });
-        }
+        const { title, summary } = req.body;
+        // FIX (SECURITY_AUDIT.md Finding 4 — A01 Broken Access Control): same pattern as
+        // deleteHistoryItem above — the client-supplied `userId` used to be trusted as the
+        // ownership filter. It's now always the authenticated caller's own id.
+        const userId = req.user.id;
 
         const updateData = {};
         if (title !== undefined) updateData.title = title;

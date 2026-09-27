@@ -223,6 +223,15 @@ const AILearningLab = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     const userId = user ? user.id : null;
 
+    // FIX (SECURITY_AUDIT.md Finding 4 — A01 Broken Access Control): the /api/ai/* endpoints
+    // now require a valid Authorization header (see Backend/routes/aiRoutes.js). These calls
+    // used to be sent with no auth header at all, so this helper attaches the same bearer
+    // token the rest of the app already stores in localStorage after login.
+    const authHeader = () => {
+        const token = localStorage.getItem('token');
+        return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+
     useEffect(() => {
         if (userId) {
             fetchHistory();
@@ -231,7 +240,9 @@ const AILearningLab = () => {
 
     const fetchHistory = async () => {
         try {
-            const response = await fetch(`https://examcoach-backend-mnoy.onrender.com/api/ai/history/${userId}`);
+            const response = await fetch(`https://examcoach-backend-mnoy.onrender.com/api/ai/history/${userId}`, {
+                headers: { ...authHeader() }
+            });
             if (response.ok) {
                 const data = await response.json();
                 setHistory(data);
@@ -296,6 +307,7 @@ const AILearningLab = () => {
             // Note: Ensure backend allows just file or just text
             const response = await fetch('https://examcoach-backend-mnoy.onrender.com/api/ai/summarize', {
                 method: 'POST',
+                headers: { ...authHeader() }, // FIX (Finding 4): route now requires protect
                 body: formData,
             });
 
@@ -343,6 +355,7 @@ const AILearningLab = () => {
 
             const response = await fetch('https://examcoach-backend-mnoy.onrender.com/api/ai/save', {
                 method: 'POST',
+                headers: { ...authHeader() }, // FIX (Finding 4): route now requires protect
                 body: formData
             });
 
@@ -539,7 +552,8 @@ const AILearningLab = () => {
             const response = await fetch(`https://examcoach-backend-mnoy.onrender.com/api/ai/history/${itemId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...authHeader() // FIX (Finding 4): route now requires protect
                 },
                 body: JSON.stringify({ userId })
             });

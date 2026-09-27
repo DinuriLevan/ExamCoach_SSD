@@ -32,7 +32,9 @@ exports.getTeacher = async (req, res) => {
 
 // @desc    Get teacher profile by user ID
 // @route   GET /api/teachers/profile/:userId
-// @access  Private (Teacher themselves)
+// @access  Private (Teacher themselves, or Admin)
+// FIX (SECURITY_AUDIT.md Finding 3): ownership (req.user.id === :userId, or admin) is now
+// enforced by the `requireSelfOrAdmin` middleware in teacherRoutes.js before this runs.
 exports.getTeacherProfile = async (req, res) => {
     try {
         const teacher = await Teacher.findOne({ user: req.params.userId }).populate('user', 'name email');
@@ -52,7 +54,9 @@ exports.getTeacherProfile = async (req, res) => {
 
 // @desc    Update teacher profile
 // @route   PUT /api/teachers/profile/:userId
-// @access  Private (Teacher themselves)
+// @access  Private (Teacher themselves, or Admin)
+// FIX (SECURITY_AUDIT.md Finding 3): ownership is now enforced by `requireSelfOrAdmin`
+// in teacherRoutes.js — a teacher can no longer edit another teacher's profile.
 exports.updateTeacherProfile = async (req, res) => {
     try {
         const { name, subject, qualification, experience, phone, bio, profilePic } = req.body;

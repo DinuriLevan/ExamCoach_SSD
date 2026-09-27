@@ -57,4 +57,24 @@ const authorize = (...roles) => {
     };
 };
 
-module.exports = { protect, authorize };
+// ── requireSelfOrAdmin(paramName) ─────────────────────────────
+// FIX (SECURITY_AUDIT.md Finding 3 — A01 Broken Access Control / IDOR):
+// `protect` only proves the caller HAS a valid token — it never checked that the token
+// belongs to the same person as the :userId in the URL. That let any logged-in student/
+// teacher read or edit ANY other student's/teacher's profile (and change their password)
+// just by swapping the id in the URL. This middleware closes that gap at the route layer:
+// it must run AFTER protect, and only lets the request through if the authenticated user
+// is acting on their own record (req.user.id === req.params[paramName]) or is an admin.
+const requireSelfOrAdmin = (paramName = 'userId') => {
+    return (req, res, next) => {
+        if (req.user.role === 'admin' || req.user.id === req.params[paramName]) {
+            return next();
+        }
+        return res.status(403).json({
+            success: false,
+            error: 'Not authorized to access this resource'
+        });
+    };
+};
+
+module.exports = { protect, authorize, requireSelfOrAdmin };
