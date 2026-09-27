@@ -124,14 +124,44 @@ exports.getQuiz = async (req, res) => {
             });
         }
 
-        // Strip sensitive access credentials from the response for students.
-        // Teachers editing a quiz pass ?includeCredentials=true to get the full object.
         const quizObj = quiz.toObject();
-        if (req.query.includeCredentials !== 'true') {
+
+        // FIX (SECURITY_AUDIT.md Finding 1 & 2): work out whether the caller is actually
+        // allowed to see teacher-only data (credentials AND the answer key below).
+        // req.user is now always populated because `protect` runs on this route (quizzRoutes.js).
+        let isOwnerOrAdmin = false;
+        if (req.user && req.user.id) {
+            if (req.user.role === 'admin') {
+                isOwnerOrAdmin = true;
+            } else {
+                const teacher = await Teacher.findOne({ user: req.user.id });
+                isOwnerOrAdmin = !!(
+                    teacher &&
+                    quizObj.createdBy &&
+                    quizObj.createdBy._id.toString() === teacher._id.toString()
+                );
+            }
+        }
+
+        // Strip sensitive access credentials from the response for everyone except the
+        // owning teacher / an admin explicitly requesting them.
+        // FIX (SECURITY_AUDIT.md Finding 1): ?includeCredentials=true used to work for ANY
+        // caller (even unauthenticated ones); it now also requires isOwnerOrAdmin.
+        const wantsCredentials = req.query.includeCredentials === 'true' && isOwnerOrAdmin;
+        if (!wantsCredentials) {
             const hasCredentials = !!(quizObj.enrollmentKey || quizObj.quizPassword);
             delete quizObj.enrollmentKey;
             delete quizObj.quizPassword;
             quizObj.hasCredentials = hasCredentials; // tells frontend whether to show the lock icon
+        }
+
+        // FIX (SECURITY_AUDIT.md Finding 2 — A06 Insecure Design): this endpoint used to return
+        // the full question objects, including `correctAnswer` and `explanation`, to anyone who
+        // called it — meaning a student could read the answer key before ever attempting the
+        // quiz. Only the owning teacher / an admin now receives the answer key; everyone else
+        // gets a "safe" quiz-taking view (question text + options only).
+        if (!isOwnerOrAdmin) {
+            quizObj.questions = quizObj.questions.map(({ correctAnswer, explanation, ...safeQuestion }) => safeQuestion);
         }
 
         res.status(200).json({ success: true, data: quizObj });
@@ -223,16 +253,18 @@ exports.verifyQuizAccess = async (req, res) => {
 //       before this controller is called.
 exports.createQuiz = async (req, res) => {
     try {
-        // TODO: Re-enable teacher ownership check after auth is fully enforced.
-        // Currently disabled so the UI works without mandatory teacher login.
-        // const teacher = await Teacher.findOne({ user: req.user.id });
-        // if (!teacher) {
-        //     return res.status(404).json({ success: false, error: 'Teacher profile not found' });
-        // }
+        // FIX (SECURITY_AUDIT.md Finding 1 — A01 Broken Access Control): the ownership check
+        // was previously commented out, and the route had no auth middleware, so anyone could
+        // create a quiz. `protect` + `authorize('teacher')` now run before this handler
+        // (see quizzRoutes.js), so req.user.id is guaranteed to be a valid teacher's user id.
+        const teacher = await Teacher.findOne({ user: req.user.id });
+        if (!teacher) {
+            return res.status(404).json({ success: false, error: 'Teacher profile not found' });
+        }
 
         const quizData = {
             ...req.body,
-            createdBy: null // TODO: replace null with teacher._id once teacher check above is re-enabled
+            createdBy: teacher._id
         };
 
         const quiz = await Quiz.create(quizData);
@@ -257,18 +289,19 @@ exports.updateQuiz = async (req, res) => {
             });
         }
 
-        // VALIDATION: If authenticated, only the quiz creator can update it.
-        // TODO: Remove the req.user guard once teacher auth is fully enforced.
-        if (req.user && req.user.id) {
-            const teacher = await Teacher.findOne({ user: req.user.id });
-            if (quiz.createdBy.toString() !== teacher._id.toString()) {
-                return res.status(403).json({ 
-                    success: false, 
-                    error: 'Not authorized to update this quiz' 
-                });
-            }
+        // FIX (SECURITY_AUDIT.md Finding 1 — A01 Broken Access Control): the ownership check
+        // used to be skipped entirely whenever req.user was missing ("unauthenticated dev/test
+        // mode"), and the route had no auth middleware, so ANY caller could update ANY quiz.
+        // `protect` + `authorize('teacher')` now run before this handler (see quizzRoutes.js),
+        // so req.user always exists and the check below is mandatory, not conditional.
+        // (quiz.createdBy is also guarded against legacy `null` values from that old bug.)
+        const teacher = await Teacher.findOne({ user: req.user.id });
+        if (!teacher || !quiz.createdBy || quiz.createdBy.toString() !== teacher._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to update this quiz'
+            });
         }
-        // If no user on the request, allow update (unauthenticated dev/test mode)
 
         const updateData = { ...req.body };
         // Keep totalQuestions in sync if questions array is being replaced
@@ -302,19 +335,19 @@ exports.deleteQuiz = async (req, res) => {
             });
         }
 
-        // VALIDATION: If authenticated, only the creator or an admin can delete.
-        // TODO: Remove the req.user guard once teacher auth is fully enforced.
-        if (req.user && req.user.id) {
+        // FIX (SECURITY_AUDIT.md Finding 1 — A01 Broken Access Control): same bypass pattern
+        // as updateQuiz above — the check was skipped whenever req.user was missing, and the
+        // route had no auth middleware, so ANY caller could delete ANY quiz. `protect` now runs
+        // before this handler (see quizzRoutes.js), so this check is mandatory.
+        if (req.user.role !== 'admin') {
             const teacher = await Teacher.findOne({ user: req.user.id });
-            if (req.user.role !== 'admin' && 
-                quiz.createdBy.toString() !== teacher._id.toString()) {
-                return res.status(403).json({ 
-                    success: false, 
-                    error: 'Not authorized to delete this quiz' 
+            if (!teacher || !quiz.createdBy || quiz.createdBy.toString() !== teacher._id.toString()) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Not authorized to delete this quiz'
                 });
             }
         }
-        // If no user on the request, allow deletion (unauthenticated dev/test mode)
 
         await quiz.deleteOne();
         res.status(200).json({ success: true, data: {} });
@@ -459,6 +492,17 @@ exports.getQuizAttempts = async (req, res) => {
         const quiz = await Quiz.findById(req.params.id);
         if (!quiz) {
             return res.status(404).json({ success: false, error: 'Quiz not found' });
+        }
+
+        // FIX (SECURITY_AUDIT.md Finding 1 — A01 Broken Access Control): this route had no auth
+        // middleware at all, so anyone could pull every student's results for any quiz.
+        // `protect` + `authorize('teacher','admin')` now run before this handler
+        // (see quizzRoutes.js); this additionally restricts a teacher to their own quiz.
+        if (req.user.role !== 'admin') {
+            const teacher = await Teacher.findOne({ user: req.user.id });
+            if (!teacher || !quiz.createdBy || quiz.createdBy.toString() !== teacher._id.toString()) {
+                return res.status(403).json({ success: false, error: 'Not authorized to view these results' });
+            }
         }
 
         const attempts = await QuizAttempt.find({ quiz: req.params.id })
