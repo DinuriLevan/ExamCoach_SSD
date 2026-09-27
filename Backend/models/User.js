@@ -18,7 +18,10 @@ const userSchema = new mongoose.Schema({
     },
     password: {
         type: String,
-        required: [true, 'Please add a password'],
+        required: function () {
+            // Google-authenticated accounts have no password
+            return this.authProvider !== 'google';
+        },
         minlength: 6,
         select: false
     },
@@ -26,6 +29,16 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['student', 'teacher', 'admin'],
         default: 'student'
+    },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    authProvider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local'
     },
     isVerified: {
         type: Boolean,
@@ -47,7 +60,7 @@ const userSchema = new mongoose.Schema({
 
 // Encrypt password using bcrypt
 userSchema.pre('save', async function () {
-    if (!this.isModified('password')) {
+    if (!this.password || !this.isModified('password')) {
         return;
     }
 

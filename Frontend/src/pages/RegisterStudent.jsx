@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
+import { authAPI } from '../services/api';
 
 const RegisterStudent = () => {
     // Step 1: Registration fields
@@ -55,6 +57,27 @@ const RegisterStudent = () => {
             }
         } catch (err) {
             setError('Something went wrong. Make sure backend is running.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+
+        try {
+            const data = await authAPI.googleLogin(credentialResponse.credential);
+
+            if (data.success) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                navigate('/student/home');
+            } else {
+                setError(data.error || 'Google sign-up failed');
+            }
+        } catch (err) {
+            setError(err.message || 'Google sign-up failed');
         } finally {
             setLoading(false);
         }
@@ -122,6 +145,7 @@ const RegisterStudent = () => {
                 )}
 
                 {step === 1 ? (
+                    <>
                     <form onSubmit={handleRegisterSubmit} className="space-y-5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                             <div>
@@ -227,6 +251,22 @@ const RegisterStudent = () => {
                             ) : 'Create Account'}
                         </button>
                     </form>
+
+                    <div className="flex items-center gap-4 my-6">
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                        <span className="text-sm font-bold text-gray-400">OR</span>
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                    </div>
+
+                    <div className="flex justify-center [&>div]:rounded-xl [&>div]:overflow-hidden">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setError('Google sign-up failed')}
+                            width="100%"
+                            text="signup_with"
+                        />
+                    </div>
+                    </>
                 ) : (
                     <form onSubmit={handleOTPSubmit} className="space-y-6">
                         <div>

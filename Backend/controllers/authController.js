@@ -3,8 +3,13 @@ const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const sendEmail = require('../utils/sendEmail');
 const { getOTPVerificationTemplate, getPasswordResetTemplate, getWelcomeTemplate } = require('../utils/emailTemplates');
+
+// Reuses the same Google Cloud OAuth Client ID already configured for Calendar
+// integration (config/googleCalendar.js) as the audience for verifying login ID tokens.
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // ── Token Helper ─────────────────────────────────────────────
 // Signs a JWT containing the user's id and role.
@@ -213,6 +218,88 @@ exports.login = async (req, res) => {
             profile = await Teacher.findOne({ user: user._id });
         }
         // Admin users have no separate profile record
+
+        res.status(200).json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                profile
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// @desc    Login or register via Google Sign-In (OpenID Connect ID token)
+// @route   POST /api/auth/google
+// @access  Public
+exports.googleLogin = async (req, res) => {
+    try {
+        const { credential } = req.body;
+
+        if (!credential) {
+            return res.status(400).json({ success: false, error: 'Missing Google credential' });
+        }
+
+        let payload;
+        try {
+            const ticket = await googleClient.verifyIdToken({
+                idToken: credential,
+                audience: process.env.GOOGLE_CLIENT_ID
+            });
+            payload = ticket.getPayload();
+        } catch (verifyErr) {
+            return res.status(401).json({ success: false, error: 'Invalid Google credential' });
+        }
+
+        // Only trust the email if Google itself has verified it — otherwise a Google
+        // account with an unverified email could be used to hijack an existing local account.
+        if (!payload.email_verified) {
+            return res.status(401).json({ success: false, error: 'Google email is not verified' });
+        }
+
+        let user = await User.findOne({ $or: [{ googleId: payload.sub }, { email: payload.email }] });
+
+        if (user) {
+            // Link a pre-existing local (password) account to this Google identity
+            if (!user.googleId) {
+                user.googleId = payload.sub;
+                if (!user.isVerified) {
+                    user.isVerified = true;
+                }
+                await user.save();
+            }
+        } else {
+            user = await User.create({
+                name: payload.name || payload.email,
+                email: payload.email,
+                googleId: payload.sub,
+                authProvider: 'google',
+                role: 'student',
+                isVerified: true
+            });
+
+            await Student.create({
+                user: user._id,
+                firstName: payload.given_name || payload.name || 'Student',
+                lastName: payload.family_name || '',
+                profilePic: payload.picture || 'default-profile.png'
+            });
+        }
+
+        const token = generateToken(user._id, user.role);
+
+        let profile = null;
+        if (user.role === 'student') {
+            profile = await Student.findOne({ user: user._id });
+        } else if (user.role === 'teacher') {
+            profile = await Teacher.findOne({ user: user._id });
+        }
 
         res.status(200).json({
             success: true,

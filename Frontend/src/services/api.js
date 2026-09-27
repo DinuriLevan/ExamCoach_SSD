@@ -94,6 +94,12 @@ export const authAPI = {
     body: JSON.stringify(credentials)
   }),
 
+  googleLogin: (credential) => apiRequest('/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential })
+  }),
+
   registerStudent: (studentData) => apiRequest('/api/auth/register-student', {
     method: 'POST',
     body: studentData // FormData for file uploads

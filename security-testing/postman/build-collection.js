@@ -103,8 +103,12 @@ pm.test('VULNERABLE: quiz deleted with no Authorization header', function () {
             method: 'GET',
             url: `${BASE}/api/quizzes/{{f1_quizId}}`,
             test: `
-pm.test('Confirms the unauthenticated delete actually persisted (quiz now 404)', function () {
-    pm.response.to.have.status(404);
+// After the Finding 1/2 fix, GET /:id also requires auth, so an unauthenticated caller now
+// gets 401 before the server even checks whether the quiz still exists. Before the fix, the
+// route was public, so a deleted quiz correctly 404'd. Either response proves the quiz is
+// gone / no longer freely readable — accept both.
+pm.test('Confirms the quiz is gone and/or no longer freely readable (404 before fix, 401 after fix)', function () {
+    pm.expect(pm.response.code).to.be.oneOf([401, 404]);
 });`
         })
     ]
@@ -294,7 +298,14 @@ pm.test('VULNERABLE: history item deleted with no Authorization header', functio
 // ---------------------------------------------------------------------
 const f5 = folder(
     'Finding 5 - Hardcoded Default Admin Credentials (A07)',
-    'SECURITY_AUDIT.md Finding 5. If seedAdmin.js was ever executed against this database, this login succeeds.',
+    'SECURITY_AUDIT.md Finding 5. IMPORTANT for a genuine before/after diff: the fix changed ' +
+    'seedAdmin.js (the SCRIPT) to stop hardcoding a password — it does NOT retroactively rotate ' +
+    'an admin account that was already created by the OLD script. If you want 5.1 to flip from ' +
+    'VULNERABLE (before) to INFO/rejected (after), drop the existing admin@examcoach.com user ' +
+    'from your TEST database and re-run seedAdmin.js from each commit before testing it ' +
+    '(old commit -> hardcoded password -> BEFORE run; current commit -> random password -> ' +
+    'AFTER run). If you skip this, both runs will show the same result for 5.1, which is ' +
+    'expected and not a bug in the report.',
     [
         request('5.1 Login As Default Seeded Admin', {
             method: 'POST',

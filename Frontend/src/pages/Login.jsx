@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { authAPI } from '../services/api';
 
 const Login = () => {
@@ -48,6 +49,34 @@ const Login = () => {
             }
         } catch (err) {
             setError('Something went wrong');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+
+        try {
+            const data = await authAPI.googleLogin(credentialResponse.credential);
+
+            if (data.success) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                if (data.user.role === 'admin') {
+                    navigate('/admin/dashboard');
+                } else if (data.user.role === 'teacher') {
+                    navigate('/teacher/dashboard');
+                } else {
+                    navigate('/student/home');
+                }
+            } else {
+                setError(data.error || 'Google sign-in failed');
+            }
+        } catch (err) {
+            setError(err.message || 'Google sign-in failed');
         } finally {
             setLoading(false);
         }
@@ -123,6 +152,7 @@ const Login = () => {
                 )}
 
                 {step === 1 ? (
+                    <>
                     <form onSubmit={handleLoginSubmit} className="space-y-6">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -173,6 +203,21 @@ const Login = () => {
                             ) : 'Sign In to Dashboard'}
                         </button>
                     </form>
+
+                    <div className="flex items-center gap-4 my-6">
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                        <span className="text-sm font-bold text-gray-400">OR</span>
+                        <div className="flex-1 h-px bg-gray-200"></div>
+                    </div>
+
+                    <div className="flex justify-center [&>div]:rounded-xl [&>div]:overflow-hidden">
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setError('Google sign-in failed')}
+                            width="100%"
+                        />
+                    </div>
+                    </>
                 ) : (
                     <form onSubmit={handleOTPSubmit} className="space-y-6">
                         <div>
