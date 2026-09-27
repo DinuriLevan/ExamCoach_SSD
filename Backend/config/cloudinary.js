@@ -2,12 +2,21 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-// Configure Cloudinary using CLOUDINARY_URL
-cloudinary.config({
-    cloud_name: 'du1gjenvg',
-    api_key: '735518326372853',
-    api_secret: 'APN9C79BAZrybhYYiCL69pqelRs'
-});
+// FIX (SECURITY_AUDIT.md Finding 6 — A02 Security Misconfiguration): the real Cloudinary
+// account secret used to be hardcoded here as a literal string (and duplicated again in
+// middleware/uploadMiddleware.js and controllers/quizController.js), even though .env already
+// provides CLOUDINARY_URL. This file is now the ONLY place Cloudinary is configured — every
+// other file imports the already-configured `cloudinary` export from here instead of calling
+// cloudinary.config() with its own copy of the secret. cloudinary.config(true) forces the SDK
+// to (re)parse cloud_name/api_key/api_secret straight from process.env.CLOUDINARY_URL, so the
+// secret now lives in exactly one place: the environment.
+if (!process.env.CLOUDINARY_URL) {
+    throw new Error(
+        'Missing CLOUDINARY_URL environment variable. Set it in Backend/.env — ' +
+        'no hardcoded fallback is provided (see SECURITY_AUDIT.md Finding 6).'
+    );
+}
+cloudinary.config(true);
 
 // Profile pictures (images only)
 const profileStorage = new CloudinaryStorage({

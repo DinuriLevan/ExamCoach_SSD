@@ -1,11 +1,10 @@
-const cloudinary = require('cloudinary').v2;
+// FIX (SECURITY_AUDIT.md Finding 6 — A02 Security Misconfiguration): this standalone debug
+// script also had the real Cloudinary secret hardcoded as a literal. It now reuses the same
+// centrally-configured singleton as the rest of the app (config/cloudinary.js), sourced only
+// from process.env.CLOUDINARY_URL.
+require('dotenv').config();
+const { cloudinary } = require('./config/cloudinary');
 const fs = require('fs');
-
-cloudinary.config({
-    cloud_name: 'du1gjenvg',
-    api_key: '735518326372853',
-    api_secret: 'APN9C79BAZrybhYYiCL69pqelRs'
-});
 
 async function testUpload() {
     try {

@@ -3,14 +3,12 @@ const fs = require('fs');
 const pdf = require('pdf-parse');
 const AIQuiz = require('../models/Quiz');
 const User = require('../models/User');
-const cloudinary = require('cloudinary').v2;
-
-// Configure Cloudinary
-cloudinary.config({
-    cloud_name: 'du1gjenvg',
-    api_key: '735518326372853',
-    api_secret: 'APN9C79BAZrybhYYiCL69pqelRs'
-});
+// FIX (SECURITY_AUDIT.md Finding 6 — A02 Security Misconfiguration): this file used to call
+// cloudinary.config() with the real account secret hardcoded as a plain literal (no env
+// fallback at all — worse than uploadMiddleware.js's version of the same bug). Cloudinary is
+// now configured in exactly one place (config/cloudinary.js, sourced only from
+// process.env.CLOUDINARY_URL) — this file just reuses that already-configured singleton.
+const { cloudinary } = require('../config/cloudinary');
 
 // Initialize the new Google GenAI Client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);

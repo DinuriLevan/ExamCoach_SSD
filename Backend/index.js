@@ -17,21 +17,40 @@ const app = express();
 // Use http.createServer so that Socket.io can share
 // the same port as the REST API (required for real-time features)
 const server = http.createServer(app);
+
+// FIX (SECURITY_AUDIT.md Finding 6 — A02 Security Misconfiguration): this used to be TWO
+// separate cors() calls — an unconfigured `app.use(cors())` (which itself defaults to
+// reflecting/allowing ANY origin) immediately followed by an explicit `app.use(cors({ origin:
+// "*" }))` — meaning literally any website could script cross-origin requests against every
+// endpoint in this API. Both are replaced with ONE call using an explicit allow-list, shared
+// with the Socket.io CORS config below so the two configs can't drift apart. Add any new
+// trusted frontend origin (e.g. a staging URL) to this array.
+const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'https://exam-coach-ssd.vercel.app' // deployed frontend (see calendarController.js)
+];
+
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(cors());
+app.use(cors({
+    origin: (origin, callback) => {
+        // No Origin header = same-origin / non-browser request (curl, server-to-server, Postman)
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error(`Not allowed by CORS: ${origin}`));
+    }
+}));
 
 // ── Socket.io Setup ──────────────────────────────────────────
 // CORS origins must match the frontend dev/prod URLs.
-// To add more origins update FRONTEND_URL in .env or extend the array below.
+// To add more origins update FRONTEND_URL in .env or extend the allowedOrigins array above.
 const io = new Server(server, {
     cors: {
-        origin: [
-            process.env.FRONTEND_URL || 'http://localhost:5173',
-            'http://localhost:5174',
-            'http://localhost:5175'
-        ],
+        origin: allowedOrigins,
         methods: ['GET', 'POST']
     }
 });
@@ -41,9 +60,6 @@ app.set('io', io);
 
 // ── Express Middleware ───────────────────────────────────────
 app.use(express.json()); // Parse incoming JSON request bodies
-app.use(cors({
-  origin: "*"
-}));        // Allow cross-origin requests from the frontend
 
 // Health-check route
 app.get('/', (req, res) => {

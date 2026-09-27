@@ -1,13 +1,10 @@
 const multer = require('multer');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
-
-// Configure Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'du1gjenvg',
-    api_key: process.env.CLOUDINARY_API_KEY || '735518326372853',
-    api_secret: process.env.CLOUDINARY_API_SECRET || 'APN9C79BAZrybhYYiCL69pqelRs'
-});
+// FIX (SECURITY_AUDIT.md Finding 6 — A02 Security Misconfiguration): this file used to call
+// cloudinary.config() itself with `process.env.X || '<hardcoded literal secret>'` fallbacks,
+// meaning the real Cloudinary secret was duplicated in source even when .env was present.
+// Cloudinary is now configured in exactly one place (config/cloudinary.js, sourced only from
+// process.env.CLOUDINARY_URL) — this file just reuses that already-configured singleton.
+const { cloudinary } = require('../config/cloudinary');
 
 // Use memory storage so we can read the file buffer before uploading to Cloudinary
 const memoryStorage = multer.memoryStorage();
